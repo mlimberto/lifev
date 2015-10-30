@@ -29,6 +29,7 @@ SET(expression_HEADERS
 	expression/EvaluationScalar.hpp
 	expression/EvaluationSubstraction.hpp
 	expression/EvaluationTranspose.hpp
+        expression/EvaluationMinusTransposed.hpp
 	expression/EvaluationSymmetricTensor.hpp
 	expression/EvaluationDeterminant.hpp
 	expression/EvaluationTrace.hpp
@@ -63,6 +64,7 @@ SET(expression_HEADERS
 	expression/ExpressionScalar.hpp
 	expression/ExpressionSubstraction.hpp
 	expression/ExpressionTranspose.hpp
+        expression/ExpressionMinusTransposed.hpp
 	expression/ExpressionSymmetricTensor.hpp
 	expression/ExpressionDeterminant.hpp
 	expression/ExpressionTrace.hpp
