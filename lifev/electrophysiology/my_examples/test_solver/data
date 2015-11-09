@@ -1,0 +1,51 @@
+	# -*- getpot -*- (GetPot mode activation for emacs)
+#----------------------------------------------------------------
+#      Data file for heart test
+#----------------------------------------------------------------
+
+[finite_element]
+degree = P1
+
+[exporter]
+multimesh  = false
+save       = 1
+post_dir = ./
+type = hdf5
+
+[prec]
+prectype	= Ifpack
+displayList	= false
+
+	[./ifpack]
+		overlap				= 2
+		
+		[./fact]
+			ilut_level-of-fill	= 1
+			drop_tolerance		= 1.e-5
+			relax_value		= 0
+
+		[../amesos]
+			solvertype		= Amesos_KLU
+		[../partitioner]
+			overlap			= 2
+		[../schwarz]
+			reordering_type		= none
+			filter_singletons	= true
+
+		[../]
+	[../]
+
+
+[discretization]
+
+[./space]
+mesh_dir        = ./
+mesh_file       = lid16.mesh #leftAtrium.mesh
+mesh_type       = .mesh
+hasFibers = 0
+fibers_dir = ./Mesh/
+fibers_file = canineHeartfibers
+fibers_format =  0  # 1 Ensight 0 BB
+
+verbose         = 1 # verbose during mesh-reading
+diagonalize     = 1 #0 # weight, 0=off

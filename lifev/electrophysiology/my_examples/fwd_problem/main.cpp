@@ -49,7 +49,6 @@
 
 #include "myFunctor.hpp"
 
-
 // Namespaces
 using namespace LifeV;
 
