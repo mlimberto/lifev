@@ -144,22 +144,33 @@ int main(int argc, char *argv[])
 
     fullMeshPtr.reset();
 
+    // manage bc
+    const int BACK = 1;
+    const int FRONT = 2;
+    const int LEFT = 3;
+    const int RIGHT = 4;
+    const int TOP = 5;
+    const int BOTTOM = 6;
+
+    BCHandler bcHandler;
+
+    BCFunctionBase ZeroBC (zeroFunction) ;
+
+    bcHandler.addBC("Back", BACK , Essential , Scalar , ZeroBC , 1) ;
+    bcHandler.addBC("Left" , LEFT , Essential , Scalar , ZeroBC , 1);
+    bcHandler.addBC("Top" , TOP , Essential , Scalar , ZeroBC , 1);
+    bcHandler.addBC("Front" , FRONT , Essential , Scalar , ZeroBC , 1);
+    bcHandler.addBC("Right" , RIGHT , Essential , Scalar , ZeroBC , 1);
+    bcHandler.addBC("Bottom" , BOTTOM , Essential , Scalar , ZeroBC , 1);
+
     // Instantiate class
-    InverseETAEllipticSolver<mesh_Type> solver( dataFile , localMeshPtr );
+    InverseETAEllipticSolver<mesh_Type> solver( dataFile ,
+                                                localMeshPtr ,
+                                                "SolverParamList2.xml" ,
+                                                bcHandler
+                                                );
 
-//  // Define FE spaces
-//  if(verbose)
-//    std::cout << "[Creating FEspace]" << std::endl;
-
-//  uSpaceStdPtr_Type uFESpace (new uSpaceStd_Type( localMeshPtr ,
-//                              dataFile("finite_element/degree","P1") , 1 , Comm  ));
-
-//  uSpaceETAPtr_Type ETuFESpace( new uSpaceETA_Type( localMeshPtr ,
-//                                & (uFESpace->refFE()) , &(uFESpace -> fe().geoMap()) ,
-//                                Comm  ) );
-
-//  // Sembra che non si possa definire facilmente lo spazio ET senza prima definire lo spazio standard
-//  // a causa del costruttore
+    solver.solveFwd();
 
 
 //  // Assemble matrix and rhs

@@ -115,18 +115,15 @@ public :
     //! @name Constructors and Destructor
     //@{
 
-    //! Empty Constructor
-    /*!
-     */
-    InverseETAEllipticSolver();
-
-
     //! Constructor
     /*!
      * @param GetPot dataFile
      * @param std::shared_ptr<Mesh> Pointer to the partitioned mesh
      */
-    InverseETAEllipticSolver(GetPot& dataFile, meshPtr_Type meshPtr);
+    InverseETAEllipticSolver(GetPot& dataFile,
+                             meshPtr_Type meshPtr ,
+                             const std::string & solverParamFile,
+                             const BCHandler &bcHandler);
 
 
     //! Constructor
@@ -153,9 +150,7 @@ public :
 
 
     //! Destructor
-    ~InverseETAEllipticSolver()
-    {
-    }
+    virtual ~InverseETAEllipticSolver() { }
 
     //@}
 
@@ -163,6 +158,20 @@ public :
 
     //! @name methods
     //@{
+
+    //! Setup forward global matrix
+    void setupFwdMatrix();
+
+    //! Setup forward rhs
+    void setupFwdRhs();
+
+    //! Setup forward boundary conditions
+    void setupFwdBC(BCHandler& bcHandler );
+
+    //! Solve forward problem
+    void solveFwd();
+
+
 
     //@}
 
@@ -186,6 +195,9 @@ private:
     // GetPot data file
     GetPot M_dataFile;
 
+    // Communicator
+    commPtr_Type M_commPtr;
+
     // partitioned mesh
     meshPtr_Type M_localMeshPtr;
     // full mesh
@@ -199,6 +211,25 @@ private:
     // stiffness matrix
     matrixPtr_Type M_stiffMatrixPtr;
 
+    // rhs
+    vectorPtr_Type M_fwdRhsPtr;
+    // solution
+    vectorPtr_Type M_fwdSolPtr;
+
+    // linear solver
+    linearSolverPtr_Type M_linearSolverPtr;
+
+    // identity matrix
+    matrixSmall_Type M_identity;
+
+    // diffusion coefficients
+    VectorSmall<3> M_diffusionTensorTorso;
+    VectorSmall<3> M_intDiffusionTensorHeartHealthy;
+    VectorSmall<3> M_extDiffusionTensorHeartHealthy;
+    VectorSmall<3> M_extDiffusionTensorHeartIsch;
+
+    // bc handler (in theory not needed !! )
+    BCHandler M_bcHandler;
 
     // verbosity
     bool M_verbose;
@@ -213,35 +244,218 @@ private:
 //! Constructors
 // ===================================================
 
-//! Empty constructor
-template<typename Mesh>
-InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver()
-{
-    std::cout << "Empty constructor is called" << std::endl;
-}
-
 //! Constructor with dataFile and partitioned mesh
 template<typename Mesh>
-InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile, meshPtr_Type meshPtr)
+InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
+                                                         meshPtr_Type meshPtr ,
+                                                         const std::string & solverParamFile ,
+                                                         const BCHandler & bcHandler) :
+    M_dataFile ( dataFile ) ,
+    M_localMeshPtr ( meshPtr ) ,
+    M_commPtr (meshPtr->comm() ) ,
+    M_fullMeshPtr( new mesh_Type(M_commPtr) ) ,
+    M_stiffMatrixPtr ( ) ,
+    M_fwdRhsPtr ( ) ,
+    M_fwdSolPtr ( ) ,
+    M_linearSolverPtr( new linearSolver_Type(M_commPtr) ),
+    M_bcHandler( bcHandler ) ,
+    M_verbose ( true )
 {
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "[Solver class instantiation]" << std::endl;
+
+    // Read physical parameters
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "  [Importing physical parameters]" << std::endl;
+
+    M_diffusionTensorTorso(0)           = dataFile("parameters/conductivity_torso", 0.0);
+    M_intDiffusionTensorHeartHealthy(0) = dataFile("parameters/conductivity_heart_healthy_int", 0.0);
+    M_extDiffusionTensorHeartHealthy(0) = dataFile("parameters/conductivity_heart_healthy_ext", 0.0);
+    M_extDiffusionTensorHeartIsch(0)    = dataFile("parameters/conductivity_heart_ischemic_ext", 0.0);
+
+
+
+    // Define finite elements spaces
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "  [Setting up FE spaces]" << std::endl;
+
+    M_FESpacePtr.reset( new FESpace_Type( M_localMeshPtr ,
+                                     M_dataFile("finite_element/degree","P1") ,
+                                     1 ,
+                                     M_commPtr) );
+
+    M_ETFESpacePtr.reset( new ETFESpace_Type ( M_localMeshPtr ,
+                                          & (M_FESpacePtr->refFE() ) ,
+                                          & (M_FESpacePtr->fe().geoMap()) ,
+                                          M_commPtr ) ) ;
+
+
+    // Setting solver parameters
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "  [Setting up solver parameters]" << std::endl;
+
+    Teuchos::RCP < Teuchos::ParameterList > aztecList = Teuchos::rcp (
+                new Teuchos::ParameterList ) ;
+    aztecList = Teuchos::getParametersFromXmlFile(solverParamFile);
+
+    M_linearSolverPtr->setParameters(*aztecList);
+
+    // Setting preconditioner
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "  [Setting up preconditioner]" << std::endl;
+
+    prec_Type* precRawPtr( new prec_Type) ;
+    precRawPtr->setDataFromGetPot(dataFile , "prec");
+
+    basePrecPtr_Type precPtr ;
+    precPtr.reset (precRawPtr);
+
+    M_linearSolverPtr->setPreconditioner(precPtr);
 
 }
 
 
 //! Constructor with datafile and name and path of mesh
 template<typename Mesh>
-InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(std::string meshName, std::string meshPath ,
-                         GetPot& dataFile)
+InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(std::string meshName,
+                                                         std::string meshPath ,
+                                                         GetPot& dataFile) :
+    M_dataFile ( dataFile ) ,
+    M_localMeshPtr ( ) ,
+    M_commPtr () ,
+    M_fullMeshPtr(  ) ,
+    M_stiffMatrixPtr ( ) ,
+    M_fwdRhsPtr ( ) ,
+    M_fwdSolPtr ( ) ,
+    M_verbose ( true )
 {
+
+
+
+
 
 }
 
 
 //! Constructor with communicator
 template<typename Mesh>
-InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(std::string meshName, std::string meshPath ,
-                         GetPot& dataFile , commPtr_Type comm)
+InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(std::string meshName,
+                                                         std::string meshPath ,
+                                                         GetPot& dataFile ,
+                                                         commPtr_Type comm)
 {
+
+}
+
+
+//
+//
+// ===================================================
+//! General methods
+// ===================================================
+//
+//
+
+//! Setup global matrix for forward problem
+template<typename Mesh>
+void InverseETAEllipticSolver<Mesh>::setupFwdMatrix()
+{
+    if (M_verbose && M_commPtr->MyPID() == 0) {
+        std::cout << "[Setting up forward matrix]" << std::endl;
+        std::cout << "  Integration ..." << std::endl; }
+
+
+    M_stiffMatrixPtr.reset( new matrix_Type( M_ETFESpacePtr->map() ) );
+
+    M_stiffMatrixPtr->zero();
+
+    {
+        using namespace ExpressionAssembly;
+
+        integrate( elements(M_localMeshPtr) , M_FESpacePtr->qr() ,
+                   M_ETFESpacePtr , M_ETFESpacePtr ,
+                   dot (grad(phi_i) , grad(phi_j) ) )
+                >> M_stiffMatrixPtr;
+    }
+
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "  Global assembly ..." << std::endl;
+
+//    M_stiffMatrixPtr->globalAssemble();
+
+
+}
+
+//! Setup global rhs for forward problem
+template<typename Mesh>
+void InverseETAEllipticSolver<Mesh>::setupFwdRhs()
+{
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "[Setting up forward right-hand-side]" << std::endl;
+
+    M_fwdRhsPtr.reset (new vector_Type( M_ETFESpacePtr->map() , Unique) );
+
+    M_fwdRhsPtr->zero();
+
+    {
+        using namespace ExpressionAssembly;
+
+//        integrate( elements(M_localMeshPtr) ,
+//                   M_FESpacePtr->qr() ,
+//                   M_ETFESpacePtr ,
+//                   phi_i )
+//                >> M_fwdRhsPtr ;
+    }
+
+//    M_fwdRhsPtr->globalAssemble();
+}
+
+//! Setup boundary conditions for the forward problem
+template<typename Mesh>
+void InverseETAEllipticSolver<Mesh>::setupFwdBC(BCHandler &bcHandler)
+{
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "[Setting up forward boundary conditions]" << std::endl;
+
+    bcHandler.bcUpdate( *M_FESpacePtr->mesh() ,
+                        M_FESpacePtr->feBd() ,
+                        M_FESpacePtr->dof() );
+
+
+    bcManage( *M_stiffMatrixPtr , *M_fwdRhsPtr ,
+              *M_FESpacePtr->mesh() , M_FESpacePtr->dof() ,
+              bcHandler , M_FESpacePtr->feBd() ,
+              1.0 , 0.0 ) ;
+
+    }
+
+//! Solve forward problem
+template<typename Mesh>
+void InverseETAEllipticSolver<Mesh>::solveFwd()
+{
+    // Setup matrix
+    setupFwdMatrix();
+
+    // Setup rhs
+    setupFwdRhs();
+
+    setupFwdBC(M_bcHandler);
+
+    M_stiffMatrixPtr->globalAssemble();
+
+    M_stiffMatrixPtr->spy("stiffness_matrix");
+
+    M_fwdRhsPtr->globalAssemble();
+
+    M_linearSolverPtr->setOperator(M_stiffMatrixPtr);
+
+    M_linearSolverPtr->setRightHandSide(M_fwdRhsPtr);
+
+    // SOLVE
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "Solving the problem ..." << std::endl;
+
+    M_linearSolverPtr->solve(M_fwdSolPtr) ;
 
 }
 
