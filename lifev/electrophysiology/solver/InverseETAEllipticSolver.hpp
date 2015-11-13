@@ -67,13 +67,16 @@ public :
 
     //! Mesh
     typedef Mesh                                    mesh_Type;
+
     typedef boost::shared_ptr<mesh_Type>            meshPtr_Type;
 
     //! Distributed vectors and matrices
     typedef VectorEpetra                            vector_Type;
+
     typedef boost::shared_ptr<VectorEpetra>         vectorPtr_Type;
 
     typedef MatrixEpetra<Real>                      matrix_Type;
+
     typedef boost::shared_ptr<matrix_Type>          matrixPtr_Type;
 
     //! 3x3 matrix
@@ -81,31 +84,43 @@ public :
 
     //! Epetra Communicator
     typedef Epetra_Comm                             comm_Type;
+
     typedef boost::shared_ptr<Epetra_Comm>          commPtr_Type;
 
     //! FE space
     typedef FESpace<mesh_Type, MapEpetra>           FESpace_Type;
+
     typedef boost::shared_ptr<FESpace_Type>         FESpacePtr_Type;
 
     //! Expression template FE space
     typedef ETFESpace<mesh_Type,MapEpetra,3,1>      ETFESpace_Type;
+
     typedef boost::shared_ptr<ETFESpace_Type>       ETFESpacePtr_Type;
 
     //! Preconditioner
     typedef LifeV::Preconditioner                   basePrec_Type;
+
     typedef boost::shared_ptr<basePrec_Type>        basePrecPtr_Type;
+
+    //! MultiLevel preconditioner
     typedef LifeV::PreconditionerML                 prec_Type;
+
     typedef boost::shared_ptr<prec_Type>            precPtr_Type;
 
     //! Linear solver
     typedef LinearSolver                            linearSolver_Type;
+
     typedef boost::shared_ptr<linearSolver_Type>    linearSolverPtr_Type;
 
     //! Exporter
     typedef Exporter<mesh_Type>                     IOFile_Type;
+
     typedef boost::shared_ptr<IOFile_Type>          IOFilePtr_Type;
+
     typedef ExporterData<mesh_Type>                 IOData_Type;
+
     typedef boost::shared_ptr<IOData_Type>          IODataPtr_Type;
+
 #ifdef HAVE_HDF5
     typedef ExporterHDF5<mesh_Type>                 hdf5IOFile_Type;
 #endif
@@ -171,6 +186,8 @@ public :
     //! Solve forward problem
     void solveFwd();
 
+    //! Solve forward problem and export solution to given exporter
+    void solveFwd( hdf5IOFile_Type& exporter );
 
 
     //@}
@@ -309,10 +326,8 @@ InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
     if (M_verbose && M_commPtr->MyPID() == 0)
         std::cout << "  [Setting up preconditioner]" << std::endl;
 
-//    prec_Type* precRawPtr( new prec_Type) ;
     M_precRawPtr->setDataFromGetPot(dataFile , "prec");
 
-//    basePrecPtr_Type precPtr ;
     M_precPtr.reset (M_precRawPtr);
 
     M_linearSolverPtr->setPreconditioner(M_precPtr);
@@ -386,9 +401,7 @@ void InverseETAEllipticSolver<Mesh>::setupFwdMatrix()
     if (M_verbose && M_commPtr->MyPID() == 0)
         std::cout << "  Global assembly ..." << std::endl;
 
-//    M_stiffMatrixPtr->globalAssemble();
-
-
+    // Remark : matrix will be globally assembled after BCs are imposed
 }
 
 //! Setup global rhs for forward problem
@@ -412,7 +425,8 @@ void InverseETAEllipticSolver<Mesh>::setupFwdRhs()
 //                >> M_fwdRhsPtr ;
     }
 
-//    M_fwdRhsPtr->globalAssemble();
+    // Remark : vector will be globally assembled after BCs are imposed
+
 }
 
 //! Setup boundary conditions for the forward problem
@@ -444,19 +458,22 @@ void InverseETAEllipticSolver<Mesh>::solveFwd()
     // Setup rhs
     setupFwdRhs();
 
+    // Impose boundary conditions
     setupFwdBC(M_bcHandler);
 
+    // Assemble matrix and vector
     M_stiffMatrixPtr->globalAssemble();
 
-    M_stiffMatrixPtr->spy("stiffness_matrix");
+//    M_stiffMatrixPtr->spy("stiffness_matrix");
 
     M_fwdRhsPtr->globalAssemble();
 
+    // Setup linear solver
     M_linearSolverPtr->setOperator(M_stiffMatrixPtr);
 
     M_linearSolverPtr->setRightHandSide(M_fwdRhsPtr);
 
-
+    // Initialize the solution vector
     M_fwdSolPtr.reset(new vector_Type(M_FESpacePtr->map() , Unique) );
     M_fwdSolPtr->zero();
 
@@ -469,6 +486,22 @@ void InverseETAEllipticSolver<Mesh>::solveFwd()
 
 }
 
+template<typename Mesh>
+void InverseETAEllipticSolver<Mesh>::solveFwd( hdf5IOFile_Type& exporter )
+{
+    // Solve problem
+
+    solveFwd();
+
+    // Export solution
+
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "Adding solution to given exporter ..." << std::endl;
+
+    exporter.addVariable( ExporterData<mesh_Type>::ScalarField , "potential" ,
+                          M_FESpacePtr , M_fwdSolPtr , UInt(0) ) ;
+
+}
 
 } // namespace LifeV
 

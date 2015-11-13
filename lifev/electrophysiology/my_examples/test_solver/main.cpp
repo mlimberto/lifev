@@ -165,6 +165,14 @@ int main(int argc, char *argv[])
     bcHandler.addBC("Right" , RIGHT , Essential , Scalar , ZeroBC , 1);
     bcHandler.addBC("Bottom" , BOTTOM , Essential , Scalar , ZeroBC , 1);
 
+
+    // Set exporter
+    ExporterHDF5 <mesh_Type > exporter (dataFile , "fwd");
+    exporter.setMeshProcId (localMeshPtr , Comm->MyPID());
+    exporter.setPrefix("test_fwd");
+    exporter.setPostDir("./");
+
+
     // Instantiate class
     InverseETAEllipticSolver<mesh_Type> solver( dataFile ,
                                                 localMeshPtr ,
@@ -172,7 +180,14 @@ int main(int argc, char *argv[])
                                                 bcHandler
                                                 );
 
-    solver.solveFwd();
+    solver.solveFwd(exporter);
+
+    // Exporter post-processing
+
+    exporter.postProcess(0);
+    exporter.closeFile();
+
+
 
 
 //  // Assemble matrix and rhs
@@ -268,77 +283,15 @@ int main(int argc, char *argv[])
 
 //  }
 
-//  // Boundary conditions
-//  const int BACK = 1;
-//  const int FRONT = 2;
-//  const int LEFT = 3;
-//  const int RIGHT = 4;
-//  const int TOP = 5;
-//  const int BOTTOM = 6;
-
-//  BCHandler bcHandler;
-
-//  BCFunctionBase ZeroBC (zeroFunction) ;
-
-//  bcHandler.addBC("Back", BACK , Essential , Scalar , ZeroBC , 1) ;
-//  bcHandler.addBC("Left" , LEFT , Essential , Scalar , ZeroBC , 1);
-//  bcHandler.addBC("Top" , TOP , Essential , Scalar , ZeroBC , 1);
-//  bcHandler.addBC("Front" , FRONT , Essential , Scalar , ZeroBC , 1);
-//  bcHandler.addBC("Right" , RIGHT , Essential , Scalar , ZeroBC , 1);
-//  bcHandler.addBC("Bottom" , BOTTOM , Essential , Scalar , ZeroBC , 1);
-
-//  bcHandler.bcUpdate( *uFESpace->mesh() , uFESpace->feBd() , uFESpace->dof() );
-//  bcManage (*systemMatrix , *fwdRhs , *uFESpace->mesh() , uFESpace->dof()  ,
-//            bcHandler , uFESpace->feBd() , 1.0 , 0.0 ) ;
-
-//  systemMatrix->globalAssemble();
-//  fwdRhs->globalAssemble();
-
-//  // Setting solver
-//  LinearSolver linearSolver( Comm ) ;
-//  linearSolver.setOperator(systemMatrix) ;
-
-//  Teuchos::RCP < Teuchos::ParameterList > aztecList = Teuchos::rcp (
-//    new Teuchos::ParameterList) ;
-
-//  aztecList = Teuchos::getParametersFromXmlFile ("SolverParamList2.xml");
-
-//  linearSolver.setParameters(*aztecList) ;
-
-//  // Setting preconditioner
-//  prec_Type* precRawPtr( new prec_Type) ;
-//  precRawPtr->setDataFromGetPot(dataFile , "prec");
-
-//  basePrecPtr_Type precPtr;
-//  precPtr.reset(precRawPtr) ;
-
-//  linearSolver.setPreconditioner(precPtr) ;
-
-//  // Set rhs
-//  linearSolver.setRightHandSide (fwdRhs) ;
-
-//  if (verbose)
-//    std::cout << "Solving the problem... " << std::flush;
-
-//  linearSolver.solve(fwdSol) ;
-
-//  if (verbose)
-//    std::cout << "done!" << std::endl << std::flush ;
-
 
 //  // Export results
 //  if (verbose)
 //    std::cout << "[Export output]" << std::endl;
 
-//  ExporterHDF5 <mesh_Type > exporter (dataFile , "fwd");
-//  exporter.setMeshProcId (localMeshPtr , Comm->MyPID());
-//  exporter.setPrefix("laplace");
-//  exporter.setPostDir("./");
+
 //  exporter.addVariable( ExporterData<mesh_Type>::ScalarField , "temperature" ,
 //                        uFESpace , fwdSol , UInt(0));
 
-//  exporter.postProcess(0);
-//  exporter.closeFile();
 
 
   #ifdef HAVE_MPI
