@@ -125,6 +125,13 @@ public :
     typedef ExporterHDF5<mesh_Type>                 hdf5IOFile_Type;
 #endif
 
+    //! Boost function
+    typedef boost::function < Real ( VectorSmall<3> ) >  function_Type;
+
+
+    typedef boost::shared_ptr<function_Type>        functionPtr_Type;
+
+
     //@}
 
     //! @name Constructors and Destructor
@@ -202,6 +209,26 @@ public :
 
     //! @name GET methods
     //@{
+
+    //@}
+
+    //! @name TEST methods
+    //@{
+
+    struct exampleRhs {
+
+        typedef Real return_Type;
+
+        Real operator() ( VectorSmall<3> spaceCoord)
+        {
+            Real x = spaceCoord[0] ;
+            Real y = spaceCoord[1] ;
+            Real z = spaceCoord[2] ;
+
+            return 3 * M_PI * M_PI
+                     * sin (M_PI * x ) * sin (M_PI * y ) * sin (M_PI * z ) ;
+        }
+    } ;
 
     //@}
 
@@ -418,11 +445,15 @@ void InverseETAEllipticSolver<Mesh>::setupFwdRhs()
     {
         using namespace ExpressionAssembly;
 
-//        integrate( elements(M_localMeshPtr) ,
-//                   M_FESpacePtr->qr() ,
-//                   M_ETFESpacePtr ,
-//                   phi_i )
-//                >> M_fwdRhsPtr ;
+//        functionPtr_Type rhsFunctorPtr( new function_Type(exampleRhs() ) ) ;
+
+        boost::shared_ptr<exampleRhs> rhsFunctorPtr(new exampleRhs() ) ;
+
+        integrate( elements(M_localMeshPtr) ,
+                   M_FESpacePtr->qr() ,
+                   M_ETFESpacePtr ,
+                   eval(rhsFunctorPtr , X) * phi_i )
+                >> M_fwdRhsPtr ;
     }
 
     // Remark : vector will be globally assembled after BCs are imposed
@@ -502,6 +533,20 @@ void InverseETAEllipticSolver<Mesh>::solveFwd( hdf5IOFile_Type& exporter )
                           M_FESpacePtr , M_fwdSolPtr , UInt(0) ) ;
 
 }
+
+
+
+//
+//
+// ===================================================
+//! Test methods
+// ===================================================
+//
+//
+
+
+
+
 
 } // namespace LifeV
 

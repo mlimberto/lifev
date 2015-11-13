@@ -284,16 +284,6 @@ int main(int argc, char *argv[])
 //  }
 
 
-//  // Export results
-//  if (verbose)
-//    std::cout << "[Export output]" << std::endl;
-
-
-//  exporter.addVariable( ExporterData<mesh_Type>::ScalarField , "temperature" ,
-//                        uFESpace , fwdSol , UInt(0));
-
-
-
   #ifdef HAVE_MPI
     }
     MPI_Finalize();
