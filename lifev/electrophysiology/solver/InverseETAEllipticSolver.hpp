@@ -216,6 +216,10 @@ private:
     // solution
     vectorPtr_Type M_fwdSolPtr;
 
+    // preconditioner pointers
+    prec_Type * M_precRawPtr;
+    basePrecPtr_Type M_precPtr;
+
     // linear solver
     linearSolverPtr_Type M_linearSolverPtr;
 
@@ -257,6 +261,7 @@ InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
     M_stiffMatrixPtr ( ) ,
     M_fwdRhsPtr ( ) ,
     M_fwdSolPtr ( ) ,
+    M_precRawPtr( new prec_Type) ,
     M_linearSolverPtr( new linearSolver_Type(M_commPtr) ),
     M_bcHandler( bcHandler ) ,
     M_verbose ( true )
@@ -304,13 +309,13 @@ InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
     if (M_verbose && M_commPtr->MyPID() == 0)
         std::cout << "  [Setting up preconditioner]" << std::endl;
 
-    prec_Type* precRawPtr( new prec_Type) ;
-    precRawPtr->setDataFromGetPot(dataFile , "prec");
+//    prec_Type* precRawPtr( new prec_Type) ;
+    M_precRawPtr->setDataFromGetPot(dataFile , "prec");
 
-    basePrecPtr_Type precPtr ;
-    precPtr.reset (precRawPtr);
+//    basePrecPtr_Type precPtr ;
+    M_precPtr.reset (M_precRawPtr);
 
-    M_linearSolverPtr->setPreconditioner(precPtr);
+    M_linearSolverPtr->setPreconditioner(M_precPtr);
 
 }
 
