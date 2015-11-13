@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
 {
   #ifdef HAVE_MPI
     MPI_Init(&argc,&argv);
+    {
     boost::shared_ptr<Epetra_Comm> Comm (new Epetra_MpiComm (MPI_COMM_WORLD));
   #else
     std::shared_ptr<Epetra_Comm> Comm (new Epetra_SerialComm) ;
@@ -110,6 +111,7 @@ int main(int argc, char *argv[])
 
     if (Comm->MyPID()==0)
         std::cout << "Testing solver class..." << std::endl;
+
 
     bool verbose = true;
 
@@ -340,6 +342,7 @@ int main(int argc, char *argv[])
 
 
   #ifdef HAVE_MPI
+    }
     MPI_Finalize();
   #endif
   return EXIT_SUCCESS;

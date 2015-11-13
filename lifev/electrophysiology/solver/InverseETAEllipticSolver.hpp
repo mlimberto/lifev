@@ -456,6 +456,11 @@ void InverseETAEllipticSolver<Mesh>::solveFwd()
 
     M_linearSolverPtr->setRightHandSide(M_fwdRhsPtr);
 
+
+    M_fwdSolPtr.reset(new vector_Type(M_FESpacePtr->map() , Unique) );
+    M_fwdSolPtr->zero();
+
+
     // SOLVE
     if (M_verbose && M_commPtr->MyPID() == 0)
         std::cout << "Solving the problem ..." << std::endl;
