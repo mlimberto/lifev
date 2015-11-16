@@ -249,41 +249,6 @@ int main(int argc, char *argv[])
 //    >> systemMatrix ;
 //  }
 
-
-//  // Vectors
-//  vectorPtr_Type fwdRhs;
-//  vectorPtr_Type fwdSol;
-
-//  if(overlap)
-//  {
-//    fwdRhs.reset(new vector_Type( uFESpace->map() , Unique, Zero));
-//    fwdSol.reset(new vector_Type( uFESpace->map() , Unique, Zero));
-//  }
-//  else
-//  {
-//    fwdRhs.reset(new vector_Type( uFESpace->map() , Unique));
-//    fwdSol.reset(new vector_Type( uFESpace->map() , Unique));
-//  }
-
-//  fwdRhs->zero();
-//  fwdSol->zero();
-
-//  boost::shared_ptr<myFunctor<Real> > mySourceFunctor( new myFunctor<Real>(sourceFunction));
-
-//  {
-//    using namespace ExpressionAssembly;
-
-//    integrate(
-//      elements(localMeshPtr) ,
-//      uFESpace->qr() ,
-//      ETuFESpace ,
-//      eval(mySourceFunctor,X) * phi_i
-//      )
-//      >> fwdRhs ;
-
-//  }
-
-
   #ifdef HAVE_MPI
     }
     MPI_Finalize();

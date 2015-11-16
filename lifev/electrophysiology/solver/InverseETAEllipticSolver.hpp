@@ -193,9 +193,10 @@ public :
     //! Solve forward problem
     void solveFwd();
 
+#ifdef HAVE_HDF5
     //! Solve forward problem and export solution to given exporter
     void solveFwd( hdf5IOFile_Type& exporter );
-
+#endif
 
     //@}
 
@@ -221,6 +222,9 @@ public :
 
         Real operator() ( VectorSmall<3> spaceCoord)
         {
+            // This solution to store functions is
+            // hopefully only temporary
+
             Real x = spaceCoord[0] ;
             Real y = spaceCoord[1] ;
             Real z = spaceCoord[2] ;
@@ -517,6 +521,7 @@ void InverseETAEllipticSolver<Mesh>::solveFwd()
 
 }
 
+#ifdef HAVE_HDF5
 template<typename Mesh>
 void InverseETAEllipticSolver<Mesh>::solveFwd( hdf5IOFile_Type& exporter )
 {
@@ -531,9 +536,8 @@ void InverseETAEllipticSolver<Mesh>::solveFwd( hdf5IOFile_Type& exporter )
 
     exporter.addVariable( ExporterData<mesh_Type>::ScalarField , "potential" ,
                           M_FESpacePtr , M_fwdSolPtr , UInt(0) ) ;
-
 }
-
+#endif
 
 
 //
