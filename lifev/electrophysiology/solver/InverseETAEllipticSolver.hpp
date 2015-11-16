@@ -55,6 +55,44 @@
 namespace LifeV
 {
 
+
+//! Scalar Functor Handler class
+//! It would be useful to use boost functions instead of functions pointers
+//! so that it becomes less prone to errors
+template <typename Return_Type>
+class InverseETAScalarFunctorHandler
+{
+public :
+
+    typedef Return_Type return_Type;
+
+    InverseETAScalarFunctorHandler( return_Type (*newFunction)(const Real & ,const Real &x , const Real &y ,
+                                                               const Real &z , const ID & )) :
+        myFunction(newFunction)
+    {
+
+    }
+
+    virtual ~InverseETAScalarFunctorHandler()
+    {
+
+    }
+
+    return_Type operator() (VectorSmall<3> spaceCoord)
+    {
+        Real x = spaceCoord[0];
+        Real y = spaceCoord[1];
+        Real z = spaceCoord[2];
+
+        return myFunction(0,x,y,z,0);
+    }
+
+private :
+
+    return_Type (*myFunction) (const Real &, const Real &x , const Real &y , const Real &z , const ID &) ;
+
+};
+
 //! Elliptic Control Problem solver - Class featuring the solver for the stochastic control problem
 
 template <typename Mesh >
@@ -126,10 +164,13 @@ public :
 #endif
 
     //! Boost function
-    typedef boost::function < Real ( VectorSmall<3> ) >  function_Type;
-
+    typedef Real (*function_Type)(const Real &, const Real &x , const Real &y , const Real &z , const ID &);
 
     typedef boost::shared_ptr<function_Type>        functionPtr_Type;
+
+    //! Functor handler
+
+    typedef boost::shared_ptr<InverseETAScalarFunctorHandler<Real>>  functor_Type;
 
 
     //@}
@@ -145,7 +186,8 @@ public :
     InverseETAEllipticSolver(GetPot& dataFile,
                              meshPtr_Type meshPtr ,
                              const std::string & solverParamFile,
-                             const BCHandler &bcHandler);
+                             const BCHandler &bcHandler,
+                             const function_Type torsoLocation);
 
 
     //! Constructor
@@ -234,6 +276,7 @@ public :
         }
     } ;
 
+
     //@}
 
 
@@ -261,6 +304,7 @@ private:
 
     // rhs
     vectorPtr_Type M_fwdRhsPtr;
+
     // solution
     vectorPtr_Type M_fwdSolPtr;
 
@@ -279,6 +323,9 @@ private:
     VectorSmall<3> M_intDiffusionTensorHeartHealthy;
     VectorSmall<3> M_extDiffusionTensorHeartHealthy;
     VectorSmall<3> M_extDiffusionTensorHeartIsch;
+
+    // function handlers for torso location
+    functor_Type   M_torsoLocationFunctor;
 
     // bc handler (in theory not needed !! )
     BCHandler M_bcHandler;
@@ -301,7 +348,8 @@ template<typename Mesh>
 InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
                                                          meshPtr_Type meshPtr ,
                                                          const std::string & solverParamFile ,
-                                                         const BCHandler & bcHandler) :
+                                                         const BCHandler & bcHandler ,
+                                                         const function_Type torsoLocation) :
     M_dataFile ( dataFile ) ,
     M_localMeshPtr ( meshPtr ) ,
     M_commPtr (meshPtr->comm() ) ,
@@ -312,6 +360,7 @@ InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
     M_precRawPtr( new prec_Type) ,
     M_linearSolverPtr( new linearSolver_Type(M_commPtr) ),
     M_bcHandler( bcHandler ) ,
+    M_torsoLocationFunctor( new InverseETAScalarFunctorHandler<Real>( torsoLocation ) ) ,
     M_verbose ( true )
 {
     if (M_verbose && M_commPtr->MyPID() == 0)
@@ -432,18 +481,27 @@ void InverseETAEllipticSolver<Mesh>::setupFwdMatrix()
 
     M_stiffMatrixPtr->zero();
 
-    // Setup diffusion coefficient
-
-    Real sigma = M_diffusionTensorTorso(0);
 
     // Integrate
 
     {
         using namespace ExpressionAssembly;
 
+
         auto I = value(M_identity) ;
 
-        auto D = value(sigma) * I ;
+        Real torsoSigma = M_diffusionTensorTorso(0);                    // M_0
+
+        Real healthyHeartSigma = M_extDiffusionTensorHeartHealthy(0)    // M_e + M_i
+                               + M_intDiffusionTensorHeartHealthy(0);
+
+        auto torsoD = value(torsoSigma) * I ;
+
+        auto heartD = value(healthyHeartSigma) * I ;
+
+        auto D = torsoD * eval( M_torsoLocationFunctor , X)
+                + heartD * (1 - eval( M_torsoLocationFunctor ,X)) ;
+
 
         integrate( elements(M_localMeshPtr) , M_FESpacePtr->qr() ,
                    M_ETFESpacePtr , M_ETFESpacePtr ,

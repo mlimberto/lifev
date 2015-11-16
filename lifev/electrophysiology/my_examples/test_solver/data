@@ -5,9 +5,9 @@
 
 
 [parameters]
-conductivity_torso 		= 0.25
-conductivity_heart_healthy_ext 	= 1.5
-conductivity_heart_healthy_int 	= 2.0
+conductivity_torso 		= 2.0
+conductivity_heart_healthy_ext 	= 0.001
+conductivity_heart_healthy_int 	= 0.001
 conductivity_heart_ischemic_ext	= 0.75
 
 [finite_element]

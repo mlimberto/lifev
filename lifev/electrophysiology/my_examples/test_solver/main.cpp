@@ -95,6 +95,15 @@ Real zeroFunction (const Real & t , const Real & x , const Real & y ,
     return 0;
 }
 
+
+Real torsoLocation (const Real &, const Real &x , const Real &y , const Real &z , const ID &)
+{
+    if (abs(x) > 0.5 || abs(y) > 0.5 || abs(z) > 0.5 )
+        return 1.0 ;
+    else
+        return 0.0 ;
+}
+
 // Main
 
 int main(int argc, char *argv[])
@@ -177,7 +186,8 @@ int main(int argc, char *argv[])
     InverseETAEllipticSolver<mesh_Type> solver( dataFile ,
                                                 localMeshPtr ,
                                                 "SolverParamList2.xml" ,
-                                                bcHandler
+                                                bcHandler ,
+                                                &torsoLocation
                                                 );
 
     solver.solveFwd(exporter);
