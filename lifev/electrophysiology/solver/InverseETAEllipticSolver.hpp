@@ -327,6 +327,16 @@ InverseETAEllipticSolver<Mesh>::InverseETAEllipticSolver(GetPot& dataFile,
     M_extDiffusionTensorHeartIsch(0)    = dataFile("parameters/conductivity_heart_ischemic_ext", 0.0);
 
 
+    // Setup identity matrix
+    M_identity (0, 0) = 1.0;
+    M_identity (0, 1) = 0.0;
+    M_identity (0, 2) = 0.0;
+    M_identity (1, 0) = 0.0;
+    M_identity (1, 1) = 1.0;
+    M_identity (1, 2) = 0.0;
+    M_identity (2, 0) = 0.0;
+    M_identity (2, 1) = 0.0;
+    M_identity (2, 2) = 1.0;
 
     // Define finite elements spaces
     if (M_verbose && M_commPtr->MyPID() == 0)
@@ -416,21 +426,30 @@ void InverseETAEllipticSolver<Mesh>::setupFwdMatrix()
         std::cout << "  Integration ..." << std::endl; }
 
 
+    // Initialize
+
     M_stiffMatrixPtr.reset( new matrix_Type( M_ETFESpacePtr->map() ) );
 
     M_stiffMatrixPtr->zero();
 
+    // Setup diffusion coefficient
+
+    Real sigma = M_diffusionTensorTorso(0);
+
+    // Integrate
+
     {
         using namespace ExpressionAssembly;
 
+        auto I = value(M_identity) ;
+
+        auto D = value(sigma) * I ;
+
         integrate( elements(M_localMeshPtr) , M_FESpacePtr->qr() ,
                    M_ETFESpacePtr , M_ETFESpacePtr ,
-                   dot (grad(phi_i) , grad(phi_j) ) )
+                   dot ( D * grad(phi_i) , grad(phi_j) ) )
                 >> M_stiffMatrixPtr;
     }
-
-    if (M_verbose && M_commPtr->MyPID() == 0)
-        std::cout << "  Global assembly ..." << std::endl;
 
     // Remark : matrix will be globally assembled after BCs are imposed
 }
@@ -497,6 +516,9 @@ void InverseETAEllipticSolver<Mesh>::solveFwd()
     setupFwdBC(M_bcHandler);
 
     // Assemble matrix and vector
+    if (M_verbose && M_commPtr->MyPID() == 0)
+        std::cout << "Global assembly ..." << std::endl;
+
     M_stiffMatrixPtr->globalAssemble();
 
 //    M_stiffMatrixPtr->spy("stiffness_matrix");
